@@ -1,0 +1,48 @@
+name: Publish App
+on:
+  push:
+    branches:
+      - never
+
+jobs:
+  build:
+    name: Install and Publish
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-node@v1
+        with:
+          node-version: '12'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@zuppler'
+
+      - name: Cache Node modules
+        uses: actions/cache@v1
+        with:
+          path: node_modules
+          key: ${{ runner.OS }}-node-${{ hashFiles('package.json') }}
+          restore-keys: |
+            ${{ runner.OS }}-node-
+            ${{ runner.OS }}-
+
+      - name: Install packages
+        run: |
+          npm install --save "@zuppler/native-online-ordering@latest"
+          npm install
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.READ_PACKAGE_TOKEN }}
+
+      - uses: expo/expo-github-action@v5
+        with:
+          expo-version: 3.x
+          expo-username: ${{ secrets.EXPO_USERNAME }}
+          expo-password: ${{ secrets.EXPO_PASSWORD }}
+          expo-cache: true
+
+      - name: Expo Publish
+        run: |
+          expo publish
+        env:
+          NODE_OPTIONS: --max_old_space_size=4096
+          METRO_NODE_OPTIONS: --max_old_space_size=4096

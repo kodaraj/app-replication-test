@@ -1,0 +1,72 @@
+name: Publish App
+on:
+  push:
+    branches:
+      - test-updates
+  schedule:
+    # At 08:00 on every Monday.
+    - cron:  '0 8 * * 1'
+
+jobs:
+  build:
+    name: Install and Publish
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Check for EXPO_TOKEN
+        run: |
+          if [ -z "${{ secrets.EXPO_TOKEN }}" ]; then
+            echo "You must provide an EXPO_TOKEN secret linked to this project's Expo account in this repo's secrets. Learn more: https://docs.expo.dev/eas-update/github-actions"
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Setup Node
+        uses: actions/setup-node@v2
+        with:
+          node-version: 16.x
+          cache: yarn
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@zuppler'
+
+      - name: Setup Expo
+        uses: expo/expo-github-action@v7
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Find yarn cache
+        id: yarn-cache-dir-path
+        run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
+
+      - name: Restore cache
+        uses: actions/cache@v3
+        id: yarn-cache
+        with:
+          path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+
+      - name: Install dependencies
+        run: |
+          yarn add "@zuppler/native-online-ordering-4@latest"
+          yarn install --immutable
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.READ_PACKAGE_TOKEN }}
+
+      - uses: expo/expo-github-action@v5
+        with:
+          expo-version: 3.x
+          expo-username: ${{ secrets.EXPO_USERNAME }}
+          expo-password: ${{ secrets.EXPO_PASSWORD }}
+          expo-cache: true
+
+      - name: EAS Publish Update
+        run: |
+          eas update --channel production --message "Automated app update"
+        env:
+          NODE_OPTIONS: --max_old_space_size=4096
+          METRO_NODE_OPTIONS: --max_old_space_size=4096
